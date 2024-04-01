@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 This script implements a syncrepl consumer which syncs data from an OpenLDAP
 server to a local (shelve) database.
@@ -55,7 +55,7 @@ class SyncReplClient(ReconnectLDAPObject, SyncreplConsumer):
         if 'cookie' in self.__data:
             return self.__data['cookie']
 
-    def syncrepl_set_cookie(self,cookie):
+    def syncrepl_set_cookie(self, cookie):
         self.__data['cookie'] = cookie
 
     def syncrepl_entry(self, dn, attributes, uuid):
@@ -76,18 +76,19 @@ class SyncReplClient(ReconnectLDAPObject, SyncreplConsumer):
         logger.debug('Detected %s of entry %r', change_type, dn)
         # If we have a cookie then this is not our first time being run,
         # so it must be a change
-        if 'ldap_cookie' in self.__data:
+        if 'cookie' in self.__data:
             self.perform_application_sync(dn, attributes, previous_attributes)
 
-    def syncrepl_delete(self,uuids):
+    def syncrepl_delete(self, uuids):
         # Make sure we know about the UUID being deleted, just in case...
         uuids = [uuid for uuid in uuids if uuid in self.__data]
         # Delete all the UUID values we know of
         for uuid in uuids:
-            logger.debug('Detected deletion of entry %r', self.__data[uuid]['dn'])
+            logger.debug('Detected deletion of entry %r',
+                         self.__data[uuid]['dn'])
             del self.__data[uuid]
 
-    def syncrepl_present(self,uuids,refreshDeletes=False):
+    def syncrepl_present(self, uuids, refreshDeletes=False):
         # If we have not been given any UUID values,
         # then we have recieved all the present controls...
         if uuids is None:
@@ -98,20 +99,23 @@ class SyncReplClient(ReconnectLDAPObject, SyncreplConsumer):
                 deletedEntries = [
                     uuid
                     for uuid in self.__data.keys()
-                    if uuid not in self.__presentUUIDs and uuid != 'ldap_cookie'
+                    if uuid not in self.__presentUUIDs
+                    and uuid != 'cookie'
                 ]
-                self.syncrepl_delete( deletedEntries )
+                self.syncrepl_delete(deletedEntries)
             # Phase is now completed, reset the list
             self.__presentUUIDs = {}
         else:
             # Note down all the UUIDs we have been sent
             for uuid in uuids:
-                    self.__presentUUIDs[uuid] = True
+                self.__presentUUIDs[uuid] = True
 
     def syncrepl_refreshdone(self):
-        logger.info('Initial synchronization is now done, persist phase begins')
+        logger.info(
+                    'Initial synchronization is now done, persist phase begins'
+                    )
 
-    def perform_application_sync(self,dn,attributes,previous_attributes):
+    def perform_application_sync(self, dn, attributes, previous_attributes):
         logger.info('Performing application sync for %r', dn)
         return True
 
@@ -120,7 +124,7 @@ class SyncReplClient(ReconnectLDAPObject, SyncreplConsumer):
 def commenceShutdown(signum, stack):
     # Declare the needed global variables
     global watcher_running, ldap_connection
-    logger.warn('Shutting down!')
+    logger.warning('Shutting down!')
 
     # We are no longer running
     watcher_running = False
@@ -134,6 +138,7 @@ def commenceShutdown(signum, stack):
     # Shutdown
     sys.exit(0)
 
+
 # Time to actually begin execution
 # Install our signal handlers
 signal.signal(signal.SIGTERM, commenceShutdown)
@@ -143,20 +148,20 @@ signal.signal(signal.SIGINT, commenceShutdown)
 try:
     ldap_url = ldapurl.LDAPUrl(sys.argv[1])
     database_path = sys.argv[2]
-except IndexError,e:
-    print (
+except IndexError:
+    print(
         'Usage:\n'
         '{script_name} <LDAP URL> <pathname of database>\n'
         '{script_name} "ldap://127.0.0.1/cn=users,dc=test'
-         '?*'
-         '?sub'
-         '?(objectClass=*)'
-         '?bindname=uid=admin%2ccn=users%2cdc=test,'
-         'X-BINDPW=password" db.shelve'
-    ).format(script_name=sys.argv[0])
+        '?*'
+        '?sub'
+        '?(objectClass=*)'
+        '?bindname=uid=admin%2ccn=users%2cdc=test,'
+        'X-BINDPW=password" db.shelve'
+        .format(script_name=sys.argv[0]))
     sys.exit(1)
 except ValueError as e:
-    print('Error parsing command-line arguments:',str(e))
+    print('Error parsing command-line arguments:', str(e))
     sys.exit(1)
 
 while watcher_running:
@@ -171,7 +176,7 @@ while watcher_running:
         logger.error('Login to LDAP server failed: %s', err)
         sys.exit(1)
     except ldap.SERVER_DOWN:
-        logger.warn('LDAP server is down, going to retry.')
+        logger.warning('LDAP server is down, going to retry.')
         time.sleep(5)
         continue
 
@@ -180,13 +185,13 @@ while watcher_running:
     ldap_search = ldap_connection.syncrepl_search(
         ldap_url.dn or '',
         ldap_url.scope or ldap.SCOPE_SUBTREE,
-        mode = 'refreshAndPersist',
+        mode='refreshAndPersist',
         attrlist=ldap_url.attrs,
-        filterstr = ldap_url.filterstr or '(objectClass=*)'
+        filterstr=ldap_url.filterstr or '(objectClass=*)'
     )
 
     try:
-        while ldap_connection.syncrepl_poll( all = 1, msgid = ldap_search):
+        while ldap_connection.syncrepl_poll(all=1, msgid=ldap_search):
             pass
     except KeyboardInterrupt:
         # User asked to exit
