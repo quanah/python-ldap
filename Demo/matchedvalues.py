@@ -8,6 +8,7 @@
 # (...)
 # mail: jsmith@example.com
 # mail: jsmith@example.org
+# uid: jsmith
 #
 # Let's say you want to fetch only the example.org email. Without MV,
 # you would first fetch all mail attributes and then filter them further
@@ -24,12 +25,23 @@
 # mail: jsmith@example.org
 # mail: john@example.com
 #
-# Matched values control: (mail=*@example.org)
+# Matched values control with control filter: (mail=*@example.org)
 # dn: uid=jsmith,ou=People,dc=example,dc=com
 # mail: jsmith@example.org
+#
+# When the matched values control is used, the attrlist is ignored.
+# To retrieve additional attributes, you must add them to the
+# matched values control filter.
+#
+# Matched values control with control filter: (mail=*@example.org)(uid=*)
+# dn: uid=jsmith,ou=People,dc=example,dc=com
+# mail: jsmith@example.org
+# uid: jsmith
+#
 
 import ldap
 from ldap.controls import MatchedValuesControl
+
 
 def print_result(search_result):
     for n in range(len(search_result)):
@@ -48,15 +60,21 @@ control_filter = "(mail=*@example.org)"
 
 ld = ldap.initialize(uri)
 
-mv = MatchedValuesControl(criticality=True, controlValue=control_filter)
+mv = MatchedValuesControl(criticality=True, filterstr=control_filter)
 
-res = ld.search_ext_s(base, scope, filter, attrlist = ['mail'])
+res = ld.search_ext_s(base, scope, filter, attrlist=['mail'])
 print("LDAP filter used: %s" % filter)
 print("Requesting 'mail' attribute back")
 print
 print("No matched values control:")
 print_result(res)
 
-res = ld.search_ext_s(base, scope, filter, attrlist = ['mail'], serverctrls = [mv])
+res = ld.search_ext_s(base, scope, filter, serverctrls=[mv])
+print("Matched values control: %s" % control_filter)
+print_result(res)
+
+control_filter = "(mail=*@example.org)(uid=*)"
+mv = MatchedValuesControl(criticality=True, filterstr=control_filter)
+res = ld.search_ext_s(base, scope, filter, serverctrls=[mv])
 print("Matched values control: %s" % control_filter)
 print_result(res)
